@@ -115,7 +115,7 @@ export default function PageUnidadesGeocercas() {
 
     setLoading(true);
     try {
-      const { snapshot, cross } = await fetchSnapshotAndCross();
+      const { snapshot, cross } = await fetchSnapshotAndCross(unitNames);
 
       const units: Unit[] = (snapshot.units || []).map((u: any) => {
         const pos = u.pos || {};
