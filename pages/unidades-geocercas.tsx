@@ -5,7 +5,7 @@ import React, { useState } from "react";
 const API = "https://wialon-geocercas-api.monitoristaalarmas.workers.dev";
 
 /* --- minutos máximo para considerar que la unidad tiene señal --- */
-const MAX_AGE_MIN = 15;                      // 👈 cámbialo si quieres 30, 120, etc.
+const MAX_AGE_MIN = 15; // 👈 cámbialo si quieres 30, 120, etc.
 const MAX_AGE_SEC = MAX_AGE_MIN * 60;
 
 /* --- Geocercas válidas (las que tú pasaste) --- */
@@ -80,26 +80,31 @@ function hasSignal(row: UnitRow): boolean {
 
 /* Letra que se muestra en la columna Sucursal */
 function getFlag(row: UnitRow): string {
-  if (!hasSignal(row)) return "";       // sin señal → sin S ni I
-  if (row.zones.length) return "S";     // en sucursal
+  if (!hasSignal(row)) return ""; // sin señal → sin S ni I
+  if (row.zones.length) return "S"; // en sucursal
   const spd = row.speed ?? 0;
-  return spd < 10 ? "I" : "";           // fuera de sucursal y < 10 km/h
+  return spd < 10 ? "I" : ""; // fuera de sucursal y < 10 km/h
 }
 
-export default function PageUnidadesGeocercas() {
-  const [unitInput, setUnitInput] = useState("");
-  const [rows, setRows] = useState<UnitRow[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [hasSearched, setHasSearched] = useState(false);
+/** Llama a:
+ *  - /wialon/units
+ *  - /wialon/resources/18891825/geofences
+ *  - /wialon/units/in-geofences/local?resource_id=18891825&names=...
+ */
+async function fetchData(unitNames: string[]) {
+  // 1) Unidades
+  const unitsResp = await fetch(`${API}/wialon/units`);
+  const unitsJson = await unitsResp.json();
+  const units: Unit[] = unitsJson.units || [];
 
-  async function fetchSnapshotAndCross(unitNames: string[]) {
-  // 1) Snapshot del recurso
-  const snapResp = await fetch(
-    `${API}/wialon/snapshot?resource_id=18891825`
-  );
-  const snap = await snapResp.json();
+  // 2) Geocercas del recurso que usas (18891825)
+  const geofResp = await fetch(`${API}/wialon/resources/18891825/geofences`);
+  const geofJson = await geofResp.json();
+  const geofencesByResource: Record<string, any[]> = {
+    [String(geofJson.resource_id)]: geofJson.geofences || [],
+  };
 
-  // 2) Cruce local SOLO para las unidades que el usuario escribió
+  // 3) Cruce geométrico solo para las unidades buscadas
   const namesParam = encodeURIComponent(unitNames.join(","));
   const crossResp = await fetch(
     `${API}/wialon/units/in-geofences/local?resource_id=18891825&names=${namesParam}`
@@ -107,11 +112,17 @@ export default function PageUnidadesGeocercas() {
   const crossJson = await crossResp.json();
 
   return {
-    snapshot: snap,
+    units,
+    geofencesByResource,
     cross: crossJson.result || {},
   };
 }
 
+export default function PageUnidadesGeocercas() {
+  const [unitInput, setUnitInput] = useState("");
+  const [rows, setRows] = useState<UnitRow[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [hasSearched, setHasSearched] = useState(false);
 
   const handleSearch = async () => {
     const unitNames = unitInput
@@ -123,25 +134,7 @@ export default function PageUnidadesGeocercas() {
 
     setLoading(true);
     try {
-      const { snapshot, cross } = await fetchSnapshotAndCross(unitNames);
-
-      const units: Unit[] = (snapshot.units || []).map((u: any) => {
-        const pos = u.pos || {};
-        const speed =
-          (typeof u.speed === "number" ? u.speed : undefined) ??
-          (typeof u.spd === "number" ? u.spd : undefined) ??
-          (typeof pos.s === "number" ? pos.s : undefined) ??
-          (typeof pos.spd === "number" ? pos.spd : undefined);
-
-        return {
-          id: u.id,
-          name: u.name || u.nm,
-          lat: u.lat ?? u.y ?? pos.y,
-          lon: u.lon ?? u.x ?? pos.x,
-          t: u.t ?? pos.t,
-          speed,
-        };
-      });
+      const { units, geofencesByResource, cross } = await fetchData(unitNames);
 
       const unitByName = new Map<string, Unit>();
       units.forEach((u) => {
@@ -149,7 +142,7 @@ export default function PageUnidadesGeocercas() {
       });
 
       const geofenceById = new Map<number, Geofence>();
-      const geosByRes = snapshot.geofences_by_resource || {};
+      const geosByRes = geofencesByResource || {};
       for (const resId of Object.keys(geosByRes)) {
         const arr = geosByRes[resId] as any[];
         (arr || []).forEach((g) => {
@@ -197,7 +190,7 @@ export default function PageUnidadesGeocercas() {
           return {
             id: found.id,
             name: found.name,
-            zones: [],       // así no marca S ni I
+            zones: [], // así no marca S ni I
           };
         }
 
@@ -229,6 +222,9 @@ export default function PageUnidadesGeocercas() {
 
       setRows(finalRows);
       setHasSearched(true);
+    } catch (e) {
+      console.error("Error consultando API", e);
+      alert("No se pudo consultar la API. Intenta de nuevo.");
     } finally {
       setLoading(false);
     }
