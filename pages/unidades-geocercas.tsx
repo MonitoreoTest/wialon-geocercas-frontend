@@ -92,18 +92,26 @@ export default function PageUnidadesGeocercas() {
   const [loading, setLoading] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
 
-  async function fetchSnapshotAndCross() {
-    const snapResp = await fetch(`${API}/wialon/snapshot?resource_id=18891825`);
-    const snap = await snapResp.json();
+  async function fetchSnapshotAndCross(unitNames: string[]) {
+  // 1) Snapshot del recurso
+  const snapResp = await fetch(
+    `${API}/wialon/snapshot?resource_id=18891825`
+  );
+  const snap = await snapResp.json();
 
-    const crossResp = await fetch(`${API}/wialon/units/in-geofences/local`);
-    const crossJson = await crossResp.json();
+  // 2) Cruce local SOLO para las unidades que el usuario escribió
+  const namesParam = encodeURIComponent(unitNames.join(","));
+  const crossResp = await fetch(
+    `${API}/wialon/units/in-geofences/local?resource_id=18891825&names=${namesParam}`
+  );
+  const crossJson = await crossResp.json();
 
-    return {
-      snapshot: snap,
-      cross: crossJson.result || {},
-    };
-  }
+  return {
+    snapshot: snap,
+    cross: crossJson.result || {},
+  };
+}
+
 
   const handleSearch = async () => {
     const unitNames = unitInput
