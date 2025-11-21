@@ -2,10 +2,10 @@
 
 import React, { useState } from "react";
 
-const API = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
+const API = "https://wialon-geocercas-api.monitoristaalarmas.workers.dev";
 
 /* --- minutos máximo para considerar que la unidad tiene señal --- */
-const MAX_AGE_MIN = 60;                      // 👈 cámbialo si quieres 30, 120, etc.
+const MAX_AGE_MIN = 15;                      // 👈 cámbialo si quieres 30, 120, etc.
 const MAX_AGE_SEC = MAX_AGE_MIN * 60;
 
 /* --- Geocercas válidas (las que tú pasaste) --- */
